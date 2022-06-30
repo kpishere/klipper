@@ -10,11 +10,16 @@
 #include "command.h" // DECL_COMMAND
 #include "sched.h" // struct timer
 
+// These are button event reports
+#define MAX_REPORTS 8
+#define MAX_BUTTONS 8
+#define MAX_BUTTONS_STR "8"
+
 struct buttons {
     struct timer time;
     uint32_t rest_ticks;
     uint8_t pressed, last_pressed;
-    uint8_t report_count, reports[8];
+    uint8_t report_count, reports[MAX_REPORTS];
     uint8_t ack_count, retransmit_state, retransmit_count;
     uint8_t button_count;
     struct gpio_in pins[0];
@@ -73,8 +78,8 @@ void
 command_config_buttons(uint32_t *args)
 {
     uint8_t button_count = args[1];
-    if (button_count > 8)
-        shutdown("Max of 8 buttons");
+    if (button_count > MAX_BUTTONS)
+        shutdown("Max of " MAX_BUTTONS_STR " buttons");
     struct buttons *b = oid_alloc(
         args[0], command_config_buttons
         , sizeof(*b) + sizeof(b->pins[0]) * button_count);

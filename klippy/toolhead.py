@@ -10,6 +10,8 @@ import mcu, chelper, kinematics.extruder
 #   mm/second), _v2 is velocity squared (mm^2/s^2), _t is time (in
 #   seconds), _r is ratio (scalar between 0.0 and 1.0)
 
+MCU_TIMESCALE_FACTOR = 12
+
 # Class to track each move request
 class Move:
     def __init__(self, toolhead, start_pos, end_pos, speed):
@@ -105,7 +107,7 @@ class Move:
         self.cruise_t = cruise_d / cruise_v
         self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
 
-LOOKAHEAD_FLUSH_TIME = 0.250
+LOOKAHEAD_FLUSH_TIME = 0.250 * MCU_TIMESCALE_FACTOR
 
 # Class to track a list of pending move requests and to facilitate
 # "look-ahead" across moves to reduce acceleration between moves.
@@ -185,12 +187,12 @@ class MoveQueue:
             # Enough moves have been queued to reach the target flush time.
             self.flush(lazy=True)
 
-MIN_KIN_TIME = 0.100
-MOVE_BATCH_TIME = 0.500
-SDS_CHECK_TIME = 0.001 # step+dir+step filter in stepcompress.c
+MIN_KIN_TIME = 0.100 * MCU_TIMESCALE_FACTOR
+MOVE_BATCH_TIME = 0.500 * MCU_TIMESCALE_FACTOR
+SDS_CHECK_TIME = 0.001 * MCU_TIMESCALE_FACTOR # step+dir+step filter in stepcompress.c
 
-DRIP_SEGMENT_TIME = 0.050
-DRIP_TIME = 0.100
+DRIP_SEGMENT_TIME = 0.050 * MCU_TIMESCALE_FACTOR
+DRIP_TIME = 0.100 * MCU_TIMESCALE_FACTOR
 class DripModeEndSignal(Exception):
     pass
 

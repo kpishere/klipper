@@ -11,7 +11,8 @@ import os, logging, threading
 ######################################################################
 
 KELVIN_TO_CELSIUS = -273.15
-MAX_HEAT_TIME = 5.0
+# * 12 factor for RP2040 MCU
+MAX_HEAT_TIME = 5.0 * 12
 AMBIENT_TEMP = 25.
 PID_PARAM_BASE = 255.
 

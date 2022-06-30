@@ -14,6 +14,13 @@
 #include "stepper.h" // stepper_event
 #include "trsync.h" // trsync_add_signal
 
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+#include "hardware/pio.h"
+#include "src/rp2040/stepper_pio.pio.h"
+volatile uint32_t stepper_pio0_program_offset;
+volatile uint32_t stepper_pio1_program_offset;
+#endif
+
 #if CONFIG_INLINE_STEPPER_HACK && CONFIG_HAVE_STEPPER_BOTH_EDGE
  #define HAVE_SINGLE_SCHEDULE 1
  #define HAVE_EDGE_OPTIMIZATION 1
@@ -51,13 +58,17 @@ struct stepper {
     struct trsync_signal stop_signal;
     // gcc (pre v6) does better optimization when uint8_t are bitfields
     uint8_t flags : 8;
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+    PIO pio;
+    uint sm; // state machine
+#endif
 };
 
 enum { POSITION_BIAS=0x40000000 };
 
 enum {
-    SF_LAST_DIR=1<<0, SF_NEXT_DIR=1<<1, SF_INVERT_STEP=1<<2, SF_NEED_RESET=1<<3,
-    SF_SINGLE_SCHED=1<<4, SF_HAVE_ADD=1<<5
+    SF_LAST_DIR=1<<0, SF_NEXT_DIR=1<<1, SF_INVERT_STEP=1<<2
+        , SF_NEED_RESET=1<<3, SF_SINGLE_SCHED=1<<4, SF_HAVE_ADD=1<<5
 };
 
 // Setup a stepper for the next move in its queue
@@ -73,12 +84,38 @@ stepper_load_next(struct stepper *s)
     // Load next 'struct stepper_move' into 'struct stepper'
     struct move_node *mn = move_queue_pop(&s->mq);
     struct stepper_move *m = container_of(mn, struct stepper_move, node);
+
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+    // Direction
+    s->position = ( m->flags & MF_DIR ? -s->position + m->count
+        : s->position + m->count );
+    if( m->add != 0 ) {  // Acceleration
+        s->time.waketime += s->interval + s->step_pulse_ticks;
+        s->add = m->add;
+        s->interval = m->interval + (m->add > 0 ? m->add : 0);
+        s->count = m->count;
+    } else {  // Cruise
+        s->add = 0;
+        s->interval = 0;
+        s->count = 1;
+        s->time.waketime += ((m->interval + s->step_pulse_ticks) * m->count);
+        if(m->count > 1) {
+            // Multiple pulses executed in PIO
+            // Send pair of words to PIO to execute step profile
+            pio_sm_put_blocking(s->pio, s->sm, CALC_STEP_DIR(m->count
+                ,!!(s->flags & SF_NEXT_DIR)) );
+            // Pulses start now
+            pio_sm_put_blocking(s->pio, s->sm, CALC_STEP_DELAY(m->interval) );
+        }
+    }
+#else
     s->add = m->add;
     s->interval = m->interval + m->add;
     if (HAVE_SINGLE_SCHEDULE && s->flags & SF_SINGLE_SCHED) {
         s->time.waketime += m->interval;
         if (HAVE_AVR_OPTIMIZATION)
-            s->flags = m->add ? s->flags|SF_HAVE_ADD : s->flags & ~SF_HAVE_ADD;
+            s->flags = m->add ? s->flags|SF_HAVE_ADD : s->flags
+                & ~SF_HAVE_ADD;
         s->count = m->count;
     } else {
         // It is necessary to schedule unstep events and so there are
@@ -94,6 +131,7 @@ stepper_load_next(struct stepper *s)
     } else {
         s->position += m->count;
     }
+#endif
 
     move_free(m);
     return SF_RESCHEDULE;
@@ -142,6 +180,25 @@ uint_fast8_t
 stepper_event_full(struct timer *t)
 {
     struct stepper *s = container_of(t, struct stepper, time);
+
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+    // Send pair of words to PIO to execute step profile
+    pio_sm_put_blocking(s->pio, s->sm, CALC_STEP_DIR(1,!!(s->flags
+        & SF_NEXT_DIR)) );
+    // Pulses start now
+    pio_sm_put_blocking(s->pio, s->sm, CALC_STEP_DELAY(s->interval) );
+    uint32_t min_next_time = timer_read_time() + s->step_pulse_ticks;
+    s->count--;
+    if (likely(s->count)) {
+        s->next_step_time += s->interval;
+        s->interval += s->add;
+        if (unlikely(timer_is_before(s->next_step_time, min_next_time)))
+            // The next step event is too close - push it back
+            goto reschedule_min;
+        s->time.waketime = s->next_step_time;
+        return SF_RESCHEDULE;
+    }
+#else
     gpio_out_toggle_noirq(s->step_pin);
     uint32_t curtime = timer_read_time();
     uint32_t min_next_time = curtime + s->step_pulse_ticks;
@@ -158,6 +215,7 @@ stepper_event_full(struct timer *t)
         s->time.waketime = s->next_step_time;
         return SF_RESCHEDULE;
     }
+#endif
     uint_fast8_t ret = stepper_load_next(s);
     if (ret == SF_DONE || !timer_is_before(s->time.waketime, min_next_time))
         return ret;
@@ -184,19 +242,21 @@ stepper_event(struct timer *t)
 void
 command_config_stepper(uint32_t *args)
 {
+    uint32_t step_pin = args[1], dir_pin = args[2];
     struct stepper *s = oid_alloc(args[0], command_config_stepper, sizeof(*s));
     int_fast8_t invert_step = args[3];
     s->flags = invert_step > 0 ? SF_INVERT_STEP : 0;
-    s->step_pin = gpio_out_setup(args[1], s->flags & SF_INVERT_STEP);
-    s->dir_pin = gpio_out_setup(args[2], 0);
+    s->step_pin = gpio_out_setup(step_pin, s->flags & SF_INVERT_STEP);
+    s->dir_pin = gpio_out_setup(dir_pin, 0);
     s->position = -POSITION_BIAS;
     s->step_pulse_ticks = args[4];
     move_queue_setup(&s->mq, sizeof(struct stepper_move));
     if (HAVE_EDGE_OPTIMIZATION) {
         if (!s->step_pulse_ticks && invert_step < 0)
             s->flags |= SF_SINGLE_SCHED;
-        else
+        else {
             s->time.func = stepper_event_full;
+        }
     } else if (HAVE_AVR_OPTIMIZATION) {
         if (s->step_pulse_ticks <= AVR_STEP_INSNS)
             s->flags |= SF_SINGLE_SCHED;
@@ -204,7 +264,25 @@ command_config_stepper(uint32_t *args)
             s->time.func = stepper_event_full;
     } else if (!CONFIG_INLINE_STEPPER_HACK) {
         s->time.func = stepper_event_full;
+    } 
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+    else {
+        s->pio = pio0;
+        s->sm = pio_claim_unused_sm(s->pio, false);
+        if(s->sm == -1u) { // None available on block zero
+            s->pio = pio1;
+            s->sm = pio_claim_unused_sm(s->pio, false);
+            if(s->sm != -1u) {
+                stepper_pio_program_init(s->pio, s->sm
+                    , stepper_pio1_program_offset, step_pin, dir_pin);
+            }
+        } else {
+            stepper_pio_program_init(s->pio, s->sm
+                , stepper_pio0_program_offset, step_pin, dir_pin);
+        }
+        s->time.func = stepper_event_full;
     }
+#endif
 }
 DECL_COMMAND(command_config_stepper, "config_stepper oid=%c step_pin=%c"
              " dir_pin=%c invert_step=%c step_pulse_ticks=%u");
@@ -273,7 +351,7 @@ command_reset_step_clock(uint32_t *args)
     if (s->count)
         shutdown("Can't reset time when stepper active");
     s->next_step_time = s->time.waketime = waketime;
-    s->flags &= ~SF_NEED_RESET;
+    s->flags &= ~SF_NEED_RESET;    
     irq_enable();
 }
 DECL_COMMAND(command_reset_step_clock, "reset_step_clock oid=%c clock=%u");
@@ -312,6 +390,12 @@ static void
 stepper_stop(struct trsync_signal *tss, uint8_t reason)
 {
     struct stepper *s = container_of(tss, struct stepper, stop_signal);
+    #if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+        // Disable PIO
+        pio_sm_set_enabled(s->pio, s->sm, false);
+        // Reset PIO 
+        pio_sm_restart(s->pio, s->sm); 
+    #endif
     sched_del_timer(&s->time);
     s->next_step_time = s->time.waketime = 0;
     s->position = -stepper_get_position(s);
@@ -325,6 +409,12 @@ stepper_stop(struct trsync_signal *tss, uint8_t reason)
         struct stepper_move *m = container_of(mn, struct stepper_move, node);
         move_free(m);
     }
+    #if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+        // Clear FIFO
+        pio_sm_clear_fifos(s->pio, s->sm);
+        // Enable for next command PIO
+        pio_sm_set_enabled(s->pio, s->sm, true);
+    #endif
 }
 
 // Set the stepper to stop on a "trigger event" (used in homing)
@@ -349,3 +439,12 @@ stepper_shutdown(void)
     }
 }
 DECL_SHUTDOWN(stepper_shutdown);
+
+#if CONFIG_MACH_RP2040 && CONFIG_HAVE_PIO
+void
+stepper_pio_init(void) {
+    stepper_pio0_program_offset = pio_add_program(pio0, &stepper_pio_program);
+    stepper_pio1_program_offset = pio_add_program(pio1, &stepper_pio_program);
+}
+DECL_INIT(stepper_pio_init);
+#endif

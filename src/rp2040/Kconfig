@@ -13,7 +13,6 @@ config RP2040_SELECT
     select HAVE_STRICT_TIMING
     select HAVE_CHIPID
     select HAVE_GPIO_HARD_PWM
-    select HAVE_STEPPER_BOTH_EDGE
 
 config BOARD_DIRECTORY
     string
@@ -70,6 +69,22 @@ config RP2040_STAGE2_CLKDIV
     default 4 if RP2040_FLASH_GENERIC_03
     default 2
 
+
+######################################################################
+# Bit bang vs PIO for stepper control (Experimental)
+######################################################################
+
+config HAVE_PIO
+    bool "Use PIO for stepper control"
+    default n
+
+######################################################################
+# GPIO Extender XRA1403
+######################################################################
+
+config HAVE_EGPIO
+    bool "Use EGPIO - 16 pin GPIO Expander"
+    default y
 
 ######################################################################
 # Communication inteface
