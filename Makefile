@@ -18,7 +18,7 @@ LD=$(CROSS_PREFIX)ld
 OBJCOPY=$(CROSS_PREFIX)objcopy
 OBJDUMP=$(CROSS_PREFIX)objdump
 STRIP=$(CROSS_PREFIX)strip
-CPP=cpp
+CPP=clang
 PYTHON=python3
 
 # Source files
@@ -65,7 +65,7 @@ $(OUT)%.o: %.c $(OUT)autoconf.h
 
 $(OUT)%.ld: %.lds.S $(OUT)autoconf.h
 	@echo "  Preprocessing $@"
-	$(Q)$(CPP) -I$(OUT) -P -MD -MT $@ $< -o $@
+	$(Q)$(CPP) -I$(OUT) -P -MD -MT $@ -S $< -o $@
 
 $(OUT)klipper.elf: $(OBJS_klipper.elf)
 	@echo "  Linking $@"
