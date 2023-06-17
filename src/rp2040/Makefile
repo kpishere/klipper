@@ -39,7 +39,7 @@ target-y += $(OUT)klipper.uf2
 
 $(OUT)lib/rp2040/elf2uf2/elf2uf2: lib/rp2040/elf2uf2/main.cpp
 	@echo "  Building $@"
-	$(Q)g++ -g -O -Ilib/rp2040 $< -o $@
+	$(Q)g++ -std=c++11 -g -O -Ilib/rp2040 $< -o $@
 
 $(OUT)klipper.uf2: $(OUT)klipper.elf $(OUT)lib/rp2040/elf2uf2/elf2uf2
 	@echo "  Creating uf2 file $@"
