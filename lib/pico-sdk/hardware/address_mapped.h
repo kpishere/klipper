@@ -11,6 +11,8 @@
 #define __force_inline inline
 #define static_assert(a,b)
 #define valid_params_if(a,b)
+#define invalid_params_if(x, test)
+#define bool_to_bit(x) ((uint)!!(x))
 #include "hardware/regs/addressmap.h"
 
 /** \file address_mapped.h

@@ -4,8 +4,8 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "board/misc.h" // timer_is_before
 #include "gpio.h" // i2c_setup, i2c_read, i2c_write
+#include "board/misc.h" // timer_is_before
 #include "command.h" // shutdown
 #include "sched.h" // sched_shutdown
 #include "internal.h" // pclock, gpio_peripheral
@@ -76,8 +76,8 @@ i2c_setup(uint32_t bus, uint32_t rate, uint8_t addr)
 
     const struct i2c_info *info = &i2c_bus[bus];
 
-    gpio_peripheral(info->sda_pin, 3, 1);
-    gpio_peripheral(info->scl_pin, 3, 1);
+    gpio_peripheral(info->sda_pin, GPIO_FUNC_I2C, 1);
+    gpio_peripheral(info->scl_pin, GPIO_FUNC_I2C, 1);
 
     if (!is_enabled_pclock(info->pclk)) {
         enable_pclock(info->pclk);

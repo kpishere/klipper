@@ -112,6 +112,13 @@ config RP2040_STAGE2_CLKDIV
     default 4 if RP2040_FLASH_GENERIC_03
     default 2
 
+######################################################################
+# GPIO Extender XRA1403
+######################################################################
+
+config HAVE_EGPIO
+    bool "Use EGPIO - 16 pin GPIO Expander"
+    default n
 
 ######################################################################
 # Communication inteface
