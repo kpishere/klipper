@@ -308,6 +308,8 @@ config INITIAL_PINS
 # if the hardware does not support the feature.
 config HAVE_GPIO
     bool
+config HAVE_EGPIO
+    bool
 config HAVE_GPIO_ADC
     bool
 config HAVE_GPIO_SPI
