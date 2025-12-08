@@ -12,7 +12,7 @@
 // clock times, prioritizes commands, and handles retransmissions.  A
 // background thread is launched to do this work and minimize latency.
 
-#include <linux/can.h> // // struct can_frame
+#include "linux/can.h" // // struct can_frame
 #include <math.h> // fabs
 #include <pthread.h> // pthread_mutex_lock
 #include <stddef.h> // offsetof
@@ -692,7 +692,7 @@ static void *
 background_thread(void *data)
 {
     struct serialqueue *sq = data;
-    set_thread_name(sq->name);
+    //set_thread_name(sq->name);
     pollreactor_run(sq->pr);
 
     // Wake any waiting receivers

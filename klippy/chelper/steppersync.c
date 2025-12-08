@@ -16,7 +16,7 @@
 #include <stdlib.h> // malloc
 #include <string.h> // memset
 #include "compiler.h" // __visible
-#include "pyhelper.h" // set_thread_name
+#include "pyhelper.h" // errorf
 #include "itersolve.h" // itersolve_generate_steps
 #include "serialqueue.h" // struct queue_message
 #include "stepcompress.h" // stepcompress_flush
@@ -105,7 +105,7 @@ static void *
 se_background_thread(void *data)
 {
     struct syncemitter *se = data;
-    set_thread_name(se->name);
+//    set_thread_name(se->name);
 
     pthread_mutex_lock(&se->lock);
     for (;;) {

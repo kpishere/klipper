@@ -39,8 +39,9 @@ class SerialReader:
         self.last_notify_id = 0
         self.pending_notifications = {}
     def _bg_thread(self):
-        name_short = ("serialhdl %s" % (self.mcu_name))[:15]
-        self.ffi_lib.set_thread_name(name_short.encode('utf-8'))
+        ## May be useful for debugging but not portable outside linux
+        # name_short = ("serialhdl %s" % (self.mcu_name))[:15]
+        # self.ffi_lib.set_thread_name(name_short.encode('utf-8'))
         response = self.ffi_main.new('struct pull_queue_message *')
         while 1:
             self.ffi_lib.serialqueue_pull(self.serialqueue, response)
