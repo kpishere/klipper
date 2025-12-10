@@ -20,10 +20,13 @@ class PrinterADCtoTemperature:
     def __init__(self, config, adc_convert):
         self.adc_convert = adc_convert
         ppins = config.get_printer().lookup_object('pins')
-        self.mcu_adc = ppins.setup_pin('adc', config.get('sensor_pin'))
-        self.mcu_adc.setup_adc_callback(REPORT_TIME, self.adc_callback)
-        self.diag_helper = HelperTemperatureDiagnostics(
-            config, self.mcu_adc, adc_convert.calc_temp)
+        sensor_pin = config.get('sensor_pin' , None)
+        if(sensor_pin is not None):
+            self.mcu_adc = ppins.setup_pin('adc', sensor_pin)
+            self.mcu_adc.setup_adc_callback(REPORT_TIME, self.adc_callback)
+            query_adc.register_adc(config.get_name(), self.mcu_adc)
+            self.diag_helper = HelperTemperatureDiagnostics(
+                config, self.mcu_adc, adc_convert.calc_temp)
     def setup_callback(self, temperature_callback):
         self.temperature_callback = temperature_callback
     def get_report_time_delta(self):
@@ -38,6 +41,13 @@ class PrinterADCtoTemperature:
                                       minval=min_adc, maxval=max_adc,
                                       range_check_count=RANGE_CHECK_COUNT)
         self.diag_helper.setup_diag_minmax(min_temp, max_temp, min_adc, max_adc)
+
+# Interface between ADC and temperature calculation tables
+class ConvertADCtoTemperature:
+    def __init__(self, adc_convert):
+        self.adc_convert = adc_convert
+    def calcTemp(self, read_value):
+        return self.adc_convert.calc_temp(read_value)
 
 # Tool to register with query_adc and report extra info on ADC range errors
 class HelperTemperatureDiagnostics:
@@ -300,14 +310,15 @@ def calc_pt100(base=100.):
     A, B = (3.9083e-3, -5.775e-7)
     return [(float(t), base * (1. + A*t + B*t*t)) for t in range(0, 500, 10)]
 
-def calc_ina826_pt100():
+def calc_ina826_pt100(factor=1.):
     # Standard circuit is 4400ohm pullup with 10x gain to 5V
-    return [(t, 10. * 5. * r / (4400. + r)) for t, r in calc_pt100()]
+    return [(t * 1. / factor, 10. * 5. * r / (4400. + r)) for t, r in calc_pt100()]
 
 DefaultVoltageSensors = [
     ("AD595", AD595), ("AD597", AD597), ("AD8494", AD8494), ("AD8495", AD8495),
     ("AD8496", AD8496), ("AD8497", AD8497),
-    ("PT100 INA826", calc_ina826_pt100())
+    ("PT100 INA826", calc_ina826_pt100()),
+    ("PT100", calc_ina826_pt100(100.))
 ]
 
 DefaultResistanceSensors = [

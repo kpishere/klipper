@@ -161,19 +161,19 @@ i2c_do_write(i2c_hw_t *i2c, uint8_t write_len, uint8_t *write
             return I2C_BUS_TIMEOUT;
     }
 
-    if (i2c->raw_intr_stat & I2C_IC_RAW_INTR_STAT_TX_ABRT_BITS) {
-        uint32_t abort_source = i2c->tx_abrt_source;
-        if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS)
-        {
-            i2c->clr_tx_abrt;
-            return I2C_BUS_START_NACK;
-        }
-        if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_TXDATA_NOACK_BITS)
-        {
-            i2c->clr_tx_abrt;
-            return I2C_BUS_NACK;
-        }
-    }
+    // if (i2c->raw_intr_stat & I2C_IC_RAW_INTR_STAT_TX_ABRT_BITS) {
+    //     uint32_t abort_source = i2c->tx_abrt_source;
+    //     if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS)
+    //     {
+    //         i2c->clr_tx_abrt;
+    //         return I2C_BUS_START_NACK;
+    //     }
+    //     if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_TXDATA_NOACK_BITS)
+    //     {
+    //         i2c->clr_tx_abrt;
+    //         return I2C_BUS_NACK;
+    //     }
+    // }
     return I2C_BUS_SUCCESS;
 }
 
@@ -203,13 +203,13 @@ i2c_do_read(i2c_hw_t *i2c, uint8_t read_len, uint8_t *read
             have_read++;
         }
 
-        if (i2c->raw_intr_stat & I2C_IC_RAW_INTR_STAT_TX_ABRT_BITS) {
-            uint32_t abort_source = i2c->tx_abrt_source;
-            if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS) {
-                i2c->clr_tx_abrt;
-                return I2C_BUS_START_READ_NACK;
-            }
-        }
+        // if (i2c->raw_intr_stat & I2C_IC_RAW_INTR_STAT_TX_ABRT_BITS) {
+        //     uint32_t abort_source = i2c->tx_abrt_source;
+        //     if (abort_source & I2C_IC_TX_ABRT_SOURCE_ABRT_7B_ADDR_NOACK_BITS) {
+        //         i2c->clr_tx_abrt;
+        //         return I2C_BUS_START_READ_NACK;
+        //     }
+        // }
     }
 
     return I2C_BUS_SUCCESS;

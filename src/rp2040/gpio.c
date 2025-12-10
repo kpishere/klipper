@@ -15,8 +15,6 @@
 #include "sched.h" // sched_shutdown
 #include "autoconf.h" // spidev
 #include "board/armcm_boot.h" // irq
-//#include "pico/assert.h" //
-//#include "pico/types.h" // bool_to_bit
 #include "hardware/sync.h" // get core num
 #include "hardware/structs/sio.h" // sio_hw
 
